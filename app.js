@@ -10,7 +10,11 @@ let state = {
     moves: [],
     comboMode: false,
     aiThinking: false,
-    gameEnded: false
+    gameEnded: false,
+    isPaused: false,
+    timeLeft: 10,
+    missedCount: { blue: 0, red: 0 },
+    flipLocked: false
 };
 
 let activeSkin = 'default';
@@ -19,6 +23,7 @@ let currentLang = 'en';
 let boardHistory = []; 
 let audioMuted = false;
 let audioCtx = null;
+let gameTimerInterval = null;
 
 const translations = {
     en: {
@@ -34,7 +39,8 @@ const translations = {
         undoBtn: "Undo Move", historyLogLabel: "Combat History",
         logMove: "Moved to", logCapture: "Captured unit at", logKing: "Promoted to King!", logUndo: "Reverted previous turn.",
         textWin: "YOU WIN", textLose: "YOU LOSE", textP1Win: "PLAYER 1 WINS", textP2Win: "PLAYER 2 WINS",
-        hunterNotice: "<i class='fa-solid fa-crosshairs'></i> <b>Hunter Override Active:</b> The NPC scans aggressively for targets. It will actively look to eliminate pieces whenever a line opens!"
+        hunterNotice: "<i class='fa-solid fa-crosshairs'></i> <b>Hunter Override Active:</b> The NPC scans aggressively for targets. It will actively look to eliminate pieces whenever a line opens!",
+        textMissed: "Missed Time", textPaused: "PAUSED"
     },
     ja: {
         gameTitle: "ゲーム", gameSubtitle: "ハンター AI アップグレード", modePvp: "2人対戦マッチ", modeNpc: "NPC対戦相手",
@@ -49,7 +55,8 @@ const translations = {
         undoBtn: "一手戻す", historyLogLabel: "戦闘履歴",
         logMove: "移動しました：", logCapture: "敵ユニットを撃破：", logKing: "キングに昇格！", logUndo: "前のターンを取り消しました。",
         textWin: "あなたの勝利", textLose: "敗北しました", textP1Win: "プレイヤー1の勝利", textP2Win: "プレイヤー2の勝利",
-        hunterNotice: "<i class='fa-solid fa-crosshairs'></i> <b>ハンターオーバーライド有効:</b> NPCはターゲットを激しくスキャンします。ラインが開くと積極的に駒の排除を狙います！"
+        hunterNotice: "<i class='fa-solid fa-crosshairs'></i> <b>ハンターオーバーライド有効:</b> NPCはターゲットを激しくスキャンします。ラインが開くと積極的に駒の排除を狙います！",
+        textMissed: "時間切れ回数", textPaused: "一時停止"
     },
     th: {
         gameTitle: "กระดาน", gameSubtitle: "ฮันเตอร์ AI อัปเกรด", modePvp: "แมตช์ผู้เล่น 2 คน", modeNpc: "คู่ต่อสู้ NPC",
@@ -64,7 +71,8 @@ const translations = {
         undoBtn: "ย้อนกลับ", historyLogLabel: "บันทึกการต่อสู้",
         logMove: "เดินหมากไปที่", logCapture: "กินหมากที่ตำแหน่ง", logKing: "หงายหมากเป็นคิง!", logUndo: "ย้อนกลับการเดินหมากก่อนหน้า",
         textWin: "คุณชนะ!", textLose: "คุณแพ้!", textP1Win: "ผู้เล่น 1 ชนะ!", textP2Win: "ผู้เล่น 2 ชนะ!",
-        hunterNotice: "<i class='fa-solid fa-crosshairs'></i> <b>เปิดใช้งานระบบล่าเป้าหมาย:</b> NPC สแกนหาเป้าหมายอย่างดุกัน มันจะพยายามกำจัดหมากของคุณทันทีที่มีโอกาส!"
+        hunterNotice: "<i class='fa-solid fa-crosshairs'></i> <b>เปิดใช้งานระบบล่าเป้าหมาย:</b> NPC สแกนหาเป้าหมายอย่างดุกัน มันจะพยายามกำจัดหมากของคุณทันทีที่มีโอกาส!",
+        textMissed: "เกินเวลา", textPaused: "หยุดชั่วคราว"
     },
     vi: {
         gameTitle: "CỜ VÂY", gameSubtitle: "Nâng Cấp Hunter AI", modePvp: "Trận Đấu 2 Người", modeNpc: "Đối Thủ NPC",
@@ -79,7 +87,8 @@ const translations = {
         undoBtn: "Hoàn Tác", historyLogLabel: "Lịch Sử Trận Đấu",
         logMove: "Đã di chuyển tới", logCapture: "Đã tiêu diệt quân tại", logKing: "Đã phong cấp lên Vua!", logUndo: "Đã hoàn tác lượt đi trước đó.",
         textWin: "BẠN THẮNG", textLose: "BẠN THUA", textP1Win: "NGƯỜI CHƠI 1 THẮNG", textP2Win: "NGƯỜI CHƠI 2 THẮNG",
-        hunterNotice: "<i class='fa-solid fa-crosshairs'></i> <b>Kích Hoạt Hunter Override:</b> NPC quét mục tiêu cực kỳ hung hãn. Nó sẽ chủ động tiêu diệt các quân cờ ngay khi có khoảng trống!"
+        hunterNotice: "<i class='fa-solid fa-crosshairs'></i> <b>Kích Hoạt Hunter Override:</b> NPC quét mục tiêu cực kỳ hung hãn. Nó sẽ chủ động tiêu diệt các quân cờ ngay khi có khoảng trống!",
+        textMissed: "Lỡ thời gian", textPaused: "TẠM DỪNG"
     },
     my: {
         gameTitle: "ဘုတ်ဂိမ်း", gameSubtitle: "မုဆိုး AI အဆင့်မြှင့်တင်မှု", modePvp: "၂ ယောက်တွဲပွဲစဉ်", modeNpc: "NPC ပြိုင်ဘက်",
@@ -90,11 +99,12 @@ const translations = {
         themeDefault: "ပုံမှန်", themeClassic: "ဂန္ထဝင်", themeCyber: "ဆိုက်ဘာ", themeRoyal: "တော်ဝင်",
         patternTitle: "ရုပ်ပုံပုံစံ", patSolid: "တောက်ပမှု", patRing: "ဟိုလိုကွင်း", patStripes: "ဆိုက်ဘာအစင်း",
         customColorsTitle: "စိတ်ကြိုက်အရောင်ပြောင်းရန်", unitsCount: "ခု", turnYour: "သင့်အလှည့်", turnP2: "ကစားသမား ၂ အလှည့်",
-        turnNpc: "NPC အလှည့်", npcTargeting: "NPC ပစ်မှတ်ရှာနေသည်...", winNpc: "ဂိမ်းပြီးဆုံးပါပြီ! NPC/အနီ အနိုင်ရရှိသည်!", winPlayer: "အောင်ပွဲ! အပြာ အနိုင်ရရှိသည်!",
+        turnNpc: "NPC အလှည့်", npcTargeting: "NPC ပစ်မှတ်ရှาနေသည်...", winNpc: "ဂိမ်းပြီးဆုံးပါပြီ! NPC/အနီ အနိုင်ရရှိသည်!", winPlayer: "အောင်ပွဲ! အပြာ အနိုင်ရရှိသည်!",
         undoBtn: "နောက်ပြန်ဆုတ်", historyLogLabel: "တိုက်ပွဲမှတ်တမ်း",
         logMove: "ရွှေ့လိုက်သည့်နေရာ", logCapture: "စားလိုက်သည့်နေရာ", logKing: "ဘုရင်အဖြစ် တိုးမြှင့်လိုက်ပြီ!", logUndo: "ယခင်အလှည့်ကို ပြန်ဖျက်လိုက်သည်။",
         textWin: "သင်နိုင်သည်", textLose: "သင်ရှုံးသည်", textP1Win: "ကစားသမား ၁ နိုင်သည်", textP2Win: "ကစားသမား ၂ နိုင်သည်",
-        hunterNotice: "<i class='fa-solid fa-crosshairs'></i> <b>မုဆိုးစနစ် အသက်ဝင်နေသည်:</b> NPC သည် ပစ်မှတ်များကို ပြင်းထန်စွာ ရှာဖွေနေပါသည်။ လမ်းကြောင်းပွင့်သည်နှင့် အကွက်များကို ချက်ချင်းစားရန် ကြိုစားလိမ့်မည်။"
+        hunterNotice: "<i class='fa-solid fa-crosshairs'></i> <b>မုဆိုးစနစ် အသက်ဝင်နေသည်:</b> NPC သည် ပစ်မှတ်များကို ပြင်းထန်စွာ ရှာဖွေနေပါသည်။ လမ်းကြောင်းပွင့်သည်နှင့် အကွက်များကို ချက်ချင်းစားရန် ကြိုစားလိမ့်မည်။",
+        textMissed: "အချိန်ကျော်မှု", textPaused: "ခေတ္တရပ်ရန်"
     }
 };
 
@@ -188,8 +198,8 @@ function changeLanguage(langCode) {
         updateUI();
         let bCount = 0, rCount = 0;
         state.board.flat().forEach(p => { if (p?.type === 'blue') bCount++; else if (p?.type === 'red') rCount++; });
-        document.getElementById('p1-score').textContent = `${bCount} ${translations[currentLang].unitsCount}`;
-        document.getElementById('p2-score').textContent = `${rCount} ${translations[currentLang].unitsCount}`;
+        document.getElementById('p1-score').innerHTML = `${bCount} ${translations[currentLang].unitsCount} <br><small style="opacity:0.7">${translations[currentLang].textMissed}: ${state.missedCount.blue}</small>`;
+        document.getElementById('p2-score').innerHTML = `${rCount} ${translations[currentLang].unitsCount} <br><small style="opacity:0.7">${translations[currentLang].textMissed}: ${state.missedCount.red}</small>`;
         document.getElementById('diff-label').textContent = state.mode === 'pvp' ? 'PVP' : `NPC (${state.diff.toUpperCase()})`;
     }
 }
@@ -263,23 +273,59 @@ function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const targetScreen = document.getElementById(id);
     if (targetScreen) targetScreen.classList.add('active');
+    
+    if (id === 'screen-game') {
+        document.getElementById('game-controls-hub').style.display = 'flex';
+    } else {
+        document.getElementById('game-controls-hub').style.display = 'none';
+    }
 }
 
 function setMode(mode, diff = 'easy') {
     state.mode = mode;
     state.diff = diff;
     state.gameEnded = false;
+    state.isPaused = false;
+    state.missedCount = { blue: 0, red: 0 };
     document.getElementById('endgame-sign').style.display = 'none';
     document.getElementById('diff-label').textContent = mode === 'pvp' ? 'PVP' : `NPC (${diff.toUpperCase()})`;
+    
+    const lockBtn = document.getElementById('lock-flip-btn');
+    if (mode === 'pvp') {
+        lockBtn.style.display = 'flex';
+    } else {
+        lockBtn.style.display = 'none';
+    }
+    
     showScreen('screen-game');
     document.getElementById('log-terminal').innerHTML = '';
     boardHistory = [];
     initBoard();
+    resetTurnTimer();
+    startGlobalClock();
+}
+
+function toggleFlipLock() {
+    state.flipLocked = !state.flipLocked;
+    const lockBtn = document.getElementById('lock-flip-btn');
+    if (state.flipLocked) {
+        lockBtn.innerHTML = '<i class="fa-solid fa-lock"></i>';
+        lockBtn.classList.add('locked');
+    } else {
+        lockBtn.innerHTML = '<i class="fa-solid fa-lock-open"></i>';
+        lockBtn.classList.remove('locked');
+    }
+    playSound('select');
+    render();
 }
 
 function abortGame() {
     state.selected = null; state.moves = []; state.comboMode = false; state.aiThinking = false; state.gameEnded = true;
+    state.isPaused = false;
+    clearInterval(gameTimerInterval);
     document.getElementById('endgame-sign').style.display = 'none';
+    
+    boardEl.className = ''; 
     showScreen('screen-main');
 }
 
@@ -303,12 +349,13 @@ function saveHistorySnapshot() {
         board: cloneBoard(state.board),
         turn: state.turn,
         comboMode: state.comboMode,
-        selected: state.selected ? { ...state.selected } : null
+        selected: state.selected ? { ...state.selected } : null,
+        missedCount: { ...state.missedCount }
     });
 }
 
 function undoMove() {
-    if (state.aiThinking || state.gameEnded || boardHistory.length === 0) return;
+    if (state.aiThinking || state.gameEnded || state.isPaused || boardHistory.length === 0) return;
     
     let previous = boardHistory.pop();
     if (state.mode === 'npc' && previous.turn === 'red' && boardHistory.length > 0) {
@@ -319,16 +366,25 @@ function undoMove() {
     state.turn = previous.turn;
     state.comboMode = previous.comboMode;
     state.selected = previous.selected;
+    state.missedCount = previous.missedCount || { blue: 0, red: 0 };
     state.moves = [];
     
     playSound('move');
     appendToLog(translations[currentLang].logUndo);
+    resetTurnTimer();
     render();
 }
 
 function render() {
     boardEl.innerHTML = '';
     let bCount = 0, rCount = 0;
+
+    // Fixed Bug: If comboMode is active, keep rotation locked on the performing player side instead of rotating awkwardly mid-combo elimination
+    if (state.mode === 'pvp' && state.turn === 'red' && !state.gameEnded && !state.flipLocked) {
+        boardEl.className = 'flip-board-red';
+    } else {
+        boardEl.className = '';
+    }
 
     for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
@@ -343,7 +399,7 @@ function render() {
                 pEl.className = `piece pattern-${activePattern} ${piece.type}-piece ${piece.king ? 'king' : ''}`;
                 if (state.selected && state.selected.r === r && state.selected.c === c) pEl.classList.add('selected');
                 
-                if (!state.aiThinking && !state.gameEnded && (state.mode === 'pvp' || state.turn === 'blue')) {
+                if (!state.aiThinking && !state.gameEnded && !state.isPaused && (state.mode === 'pvp' || state.turn === 'blue')) {
                     pEl.onclick = (e) => {
                         e.stopPropagation();
                         selectPiece(r, c);
@@ -353,7 +409,7 @@ function render() {
             }
 
             const move = state.moves.find(m => m.r === r && m.c === c);
-            if (move && !state.aiThinking && !state.gameEnded) {
+            if (move && !state.aiThinking && !state.gameEnded && !state.isPaused) {
                 sq.classList.add('move-hint');
                 sq.onclick = () => executeMove(move);
             }
@@ -361,8 +417,8 @@ function render() {
         }
     }
 
-    document.getElementById('p1-score').textContent = `${bCount} ${translations[currentLang].unitsCount}`;
-    document.getElementById('p2-score').textContent = `${rCount} ${translations[currentLang].unitsCount}`;
+    document.getElementById('p1-score').innerHTML = `${bCount} ${translations[currentLang].unitsCount} <br><small style="opacity:0.7">${translations[currentLang].textMissed}: ${state.missedCount.blue}</small>`;
+    document.getElementById('p2-score').innerHTML = `${rCount} ${translations[currentLang].unitsCount} <br><small style="opacity:0.7">${translations[currentLang].textMissed}: ${state.missedCount.red}</small>`;
     updateUI();
 }
 
@@ -377,19 +433,26 @@ function updateUI() {
         return;
     }
 
+    if (state.isPaused) {
+        status.textContent = translations[currentLang].textPaused;
+        status.style.color = '#eab308';
+        return;
+    }
+
     if (state.aiThinking) { 
-        status.textContent = translations[currentLang].npcTargeting; status.style.color = '#ef4444'; 
+        status.textContent = `${translations[currentLang].npcTargeting} (${state.timeLeft}s)`; status.style.color = '#ef4444'; 
     } else { 
-        status.textContent = state.turn === 'blue' ? translations[currentLang].turnYour : (state.mode === 'pvp' ? translations[currentLang].turnP2 : translations[currentLang].turnNpc); 
+        let currentTurnText = state.turn === 'blue' ? translations[currentLang].turnYour : (state.mode === 'pvp' ? translations[currentLang].turnP2 : translations[currentLang].turnNpc);
+        status.textContent = `${currentTurnText} (${state.timeLeft}s)`; 
         status.style.color = 'var(--accent-lime)'; 
     }
 
-    p1.className = state.turn === 'blue' ? 'stat-item turn-active' : 'stat-item';
-    p2.className = state.turn === 'red' ? 'stat-item turn-active' : 'stat-item';
+    p1.className = (state.turn === 'blue' && !state.isPaused) ? 'stat-item turn-active' : 'stat-item';
+    p2.className = (state.turn === 'red' && !state.isPaused) ? 'stat-item turn-active' : 'stat-item';
 }
 
 function selectPiece(r, c) {
-    if (state.comboMode || state.gameEnded) return;
+    if (state.comboMode || state.gameEnded || state.isPaused) return;
     const p = state.board[r][c];
     if (!p || p.type !== state.turn) return;
 
@@ -451,6 +514,14 @@ function executeMove(move) {
     const sideColorClass = p.type === 'blue' ? 'log-blue' : 'log-red';
     const pName = p.type === 'blue' ? 'P1' : (state.mode === 'pvp' ? 'P2' : 'NPC');
     
+    let cowardlyKingEliminated = false;
+    if (p.king && !move.eat) {
+        const initialAvailableJumps = getValidMoves(r, c, state.board, true).filter(m => m.eat);
+        if (initialAvailableJumps.length > 0) {
+            cowardlyKingEliminated = true;
+        }
+    }
+
     appendToLog(`${pName}: ${translations[currentLang].logMove} (${move.r}, ${move.c})`, sideColorClass);
 
     state.board[move.r][move.c] = p;
@@ -477,25 +548,128 @@ function executeMove(move) {
         appendToLog(`${pName}: ${translations[currentLang].logKing}`, 'log-active');
     }
 
-    if (move.eat) {
+    if (cowardlyKingEliminated) {
+        const affectedSq = document.getElementById(`sq-${move.r}-${move.c}`);
+        if (affectedSq && affectedSq.firstChild) {
+            affectedSq.firstChild.classList.add('fx-explode');
+        }
+        state.board[move.r][move.c] = null;
+        playSound('capture');
+        appendToLog(`[RULE OVERRIDE] ${pName} King dodged an elimination path and was destroyed!`, 'log-red');
+    }
+
+    if (move.eat && !cowardlyKingEliminated) {
         const next = getValidMoves(move.r, move.c, state.board, true).filter(m => m.eat);
         if (next.length > 0) {
+            // Keep comboMode active and select the piece for the multi-capture
             state.comboMode = true; state.selected = {r: move.r, c: move.c}; state.moves = next;
+            resetTurnTimer();
             render();
-            if (state.mode === 'npc' && state.turn === 'red') setTimeout(() => npcMove(), 400);
+            if (state.mode === 'npc' && state.turn === 'red') setTimeout(() => { if(!state.isPaused) npcMove(); }, 400);
             return;
         }
     }
 
     state.comboMode = false; state.turn = state.turn === 'blue' ? 'red' : 'blue';
     state.selected = null; state.moves = [];
+    resetTurnTimer();
     render();
     
     if (!checkWin() && state.mode === 'npc' && state.turn === 'red') {
         state.aiThinking = true;
         updateUI();
-        setTimeout(npcMove, 500);
+        setTimeout(() => { if(!state.isPaused) npcMove(); }, 500);
     }
+}
+
+function resetTurnTimer() {
+    state.timeLeft = 10;
+}
+
+function startGlobalClock() {
+    clearInterval(gameTimerInterval);
+    gameTimerInterval = setInterval(() => {
+        if (state.gameEnded || state.isPaused) return;
+
+        state.timeLeft--;
+        if (state.timeLeft <= 0) {
+            handleTimeOut();
+        } else {
+            updateUI();
+        }
+    }, 1000);
+}
+
+function handleTimeOut() {
+    const violatingPlayer = state.turn;
+    state.missedCount[violatingPlayer]++;
+    
+    appendToLog(`[TIMEOUT] ${violatingPlayer.toUpperCase()} missed thinking time! (${state.missedCount[violatingPlayer]}/3)`, 'log-red');
+    
+    if (state.missedCount[violatingPlayer] >= 3) {
+        state.gameEnded = true;
+        clearInterval(gameTimerInterval);
+        triggerForfeitWin(violatingPlayer === 'blue' ? 'red' : 'blue');
+        return;
+    }
+
+    state.selected = null;
+    state.moves = [];
+    state.comboMode = false;
+    state.turn = state.turn === 'blue' ? 'red' : 'blue';
+    
+    resetTurnTimer();
+    render();
+
+    if (!checkWin() && state.mode === 'npc' && state.turn === 'red') {
+        state.aiThinking = true;
+        updateUI();
+        setTimeout(() => { if(!state.isPaused) npcMove(); }, 500);
+    }
+}
+
+function togglePause() {
+    if (state.gameEnded) return;
+    state.isPaused = !state.isPaused;
+    
+    const pauseBtn = document.getElementById('pause-ctrl-btn');
+    if (state.isPaused) {
+        pauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+        pauseBtn.classList.add('paused');
+    } else {
+        pauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+        pauseBtn.classList.remove('paused');
+        if (state.mode === 'npc' && state.turn === 'red' && !state.aiThinking) {
+            state.aiThinking = true;
+            setTimeout(npcMove, 400);
+        }
+    }
+    render();
+}
+
+function triggerForfeitWin(winnerSide) {
+    const sign = document.getElementById('endgame-sign');
+    const msg = document.getElementById('endgame-msg');
+    sign.style.display = 'flex';
+    
+    boardEl.className = '';
+
+    if (state.mode === 'npc') {
+        if (winnerSide === 'red') {
+            msg.textContent = translations[currentLang].textLose;
+            msg.className = "endgame-text endgame-lose";
+            playSound('gamelose');
+        } else {
+            msg.textContent = translations[currentLang].textWin;
+            msg.className = "endgame-text endgame-win";
+            playSound('gamewin');
+        }
+    } else {
+        msg.textContent = winnerSide === 'blue' ? translations[currentLang].textP1Win : translations[currentLang].textP2Win;
+        msg.className = "endgame-text endgame-win";
+        playSound('gamewin');
+    }
+    render();
 }
 
 function getAllMoves(currentBoard, playerType) {
@@ -529,6 +703,7 @@ function evaluateBoard(b) {
 
 function cloneBoard(b) { return b.map(row => row.map(cell => cell ? { ...cell } : null)); }
 
+// Complete tree processing depth configurations tracking parameters
 function minimax(b, depth, alpha, beta, isMax) {
     if (depth === 0) return evaluateBoard(b);
     const side = isMax ? 'red' : 'blue'; const moves = getAllMoves(b, side);
@@ -538,9 +713,23 @@ function minimax(b, depth, alpha, beta, isMax) {
         let maxEval = -Infinity;
         for (const item of moves) {
             const nextB = cloneBoard(b);
-            nextB[item.move.r][item.move.c] = nextB[item.from.r][item.from.c]; nextB[item.from.r][item.from.c] = null;
-            if (item.move.eat) nextB[item.move.eat.r][item.move.eat.c] = null;
-            if (item.move.r === 9) nextB[item.move.r][item.move.c].king = true;
+            
+            let kingEliminatedInSim = false;
+            if (nextB[item.from.r][item.from.c]?.king && !item.move.eat) {
+                if (getValidMoves(item.from.r, item.from.c, nextB, true).filter(m => m.eat).length > 0) {
+                    kingEliminatedInSim = true;
+                }
+            }
+
+            if (kingEliminatedInSim) {
+                nextB[item.from.r][item.from.c] = null;
+            } else {
+                nextB[item.move.r][item.move.c] = nextB[item.from.r][item.from.c]; 
+                nextB[item.from.r][item.from.c] = null;
+                if (item.move.eat) nextB[item.move.eat.r][item.move.eat.c] = null;
+                if (item.move.r === 9) nextB[item.move.r][item.move.c].king = true;
+            }
+
             let score = minimax(nextB, depth - 1, alpha, beta, false);
             maxEval = Math.max(maxEval, score); alpha = Math.max(alpha, score);
             if (beta <= alpha) break;
@@ -550,11 +739,25 @@ function minimax(b, depth, alpha, beta, isMax) {
         let minEval = Infinity;
         for (const item of moves) {
             const nextB = cloneBoard(b);
-            nextB[item.move.r][item.move.c] = nextB[item.from.r][item.from.c]; nextB[item.from.r][item.from.c] = null;
-            if (item.move.eat) nextB[item.move.eat.r][item.move.eat.c] = null;
-            if (item.move.r === 0) nextB[item.move.r][item.move.c].king = true;
+            
+            let kingEliminatedInSim = false;
+            if (nextB[item.from.r][item.from.c]?.king && !item.move.eat) {
+                if (getValidMoves(item.from.r, item.from.c, nextB, true).filter(m => m.eat).length > 0) {
+                    kingEliminatedInSim = true;
+                }
+            }
+
+            if (kingEliminatedInSim) {
+                nextB[item.from.r][item.from.c] = null;
+            } else {
+                nextB[item.move.r][item.move.c] = nextB[item.from.r][item.from.c]; 
+                nextB[item.from.r][item.from.c] = null;
+                if (item.move.eat) nextB[item.move.eat.r][item.move.eat.c] = null;
+                if (item.move.r === 0) nextB[item.move.r][item.move.c].king = true;
+            }
+
             let score = minimax(nextB, depth - 1, alpha, beta, true);
-            minEval = Math.min(minEval, score); beta = Math.min(beta, score);
+            minEval = Math.min(minEval, score); beta = Math.min(beta, true);
             if (beta <= alpha) break;
         }
         return minEval;
@@ -562,7 +765,7 @@ function minimax(b, depth, alpha, beta, isMax) {
 }
 
 function npcMove() {
-    if (state.gameEnded) return;
+    if (state.gameEnded || state.isPaused) return;
     if (state.comboMode) {
         const next = getValidMoves(state.selected.r, state.selected.c, state.board, true).filter(m => m.eat);
         if (next.length > 0) executeMove(next[Math.floor(Math.random() * next.length)]);
@@ -591,18 +794,31 @@ function npcMove() {
 
     for (const item of activeMovePool) {
         const simulatedBoard = cloneBoard(state.board);
-        simulatedBoard[item.move.r][item.move.c] = simulatedBoard[item.from.r][item.from.c]; simulatedBoard[item.from.r][item.from.c] = null;
-        if (item.move.eat) simulatedBoard[item.move.eat.r][item.move.eat.c] = null;
-        if (item.move.r === 9) simulatedBoard[item.move.r][item.move.c].king = true;
+        
+        let kingEliminatedInSim = false;
+        if (simulatedBoard[item.from.r][item.from.c]?.king && !item.move.eat) {
+            if (getValidMoves(item.from.r, item.from.c, simulatedBoard, true).filter(m => m.eat).length > 0) {
+                kingEliminatedInSim = true;
+            }
+        }
+
+        if (kingEliminatedInSim) {
+            simulatedBoard[item.from.r][item.from.c] = null;
+        } else {
+            simulatedBoard[item.move.r][item.move.c] = simulatedBoard[item.from.r][item.from.c]; simulatedBoard[item.from.r][item.from.c] = null;
+            if (item.move.eat) simulatedBoard[item.move.eat.r][item.move.eat.c] = null;
+            if (item.move.r === 9) simulatedBoard[item.move.r][item.move.c].king = true;
+        }
 
         let score = minimax(simulatedBoard, searchDepth - 1, -Infinity, Infinity, false);
         if (item.move.eat) score += 50;
+        if (kingEliminatedInSim) score -= 1000; 
 
         if (score > bestScore || (score === bestScore && Math.random() > 0.5)) { bestScore = score; bestMove = item; }
     }
 
     state.aiThinking = false;
-    if (bestMove) { state.selected = bestMove.from; executeMove(bestMove.move); }
+    if (bestMove && !state.isPaused) { state.selected = bestMove.from; executeMove(bestMove.move); }
 }
 
 function inB(r, c) { return r >= 0 && r < 10 && c >= 0 && c < 10; }
@@ -611,10 +827,12 @@ function checkWin() {
     let b=0, r=0; state.board.flat().forEach(p => { if (p?.type === 'blue') b++; else if (p?.type === 'red') r++; });
     if (b === 0 || r === 0) {
         state.gameEnded = true;
+        clearInterval(gameTimerInterval);
         const sign = document.getElementById('endgame-sign');
         const msg = document.getElementById('endgame-msg');
         
         sign.style.display = 'flex';
+        boardEl.className = '';
         
         if (state.mode === 'npc') {
             if (b === 0) {

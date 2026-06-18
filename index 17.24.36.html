@@ -22,6 +22,15 @@
             <i class="fa-solid fa-moon"></i>
         </button>
     </div>
+
+    <div class="control-hub" id="game-controls-hub" style="display: none;">
+        <button class="pause-btn" id="pause-ctrl-btn" onclick="togglePause()" title="Pause / Resume Match">
+            <i class="fa-solid fa-pause"></i>
+        </button>
+        <button class="lock-btn" id="lock-flip-btn" onclick="toggleFlipLock()" title="Lock Board Rotation">
+            <i class="fa-solid fa-lock-open"></i>
+        </button>
+    </div>
     
     <div id="screen-main" class="screen active">
         <h1>CX BOARD <span data-i18n="gameTitle">GAME</span></h1>

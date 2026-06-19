@@ -99,7 +99,7 @@ const translations = {
         themeDefault: "ပုံမှန်", themeClassic: "ဂန္ထဝင်", themeCyber: "ဆိုက်ဘာ", themeRoyal: "တော်ဝင်",
         patternTitle: "ရုပ်ပုံပုံစံ", patSolid: "တောက်ပမှု", patRing: "ဟိုလိုကွင်း", patStripes: "ဆိုက်ဘာအစင်း",
         customColorsTitle: "စိတ်ကြိုက်အရောင်ပြောင်းရန်", unitsCount: "ခု", turnYour: "သင့်အလှည့်", turnP2: "ကစားသမား ၂ အလှည့်",
-        turnNpc: "NPC အလှည့်", npcTargeting: "NPC ပစ်မှတ်ရှาနေသည်...", winNpc: "ဂိမ်းပြီးဆုံးပါပြီ! NPC/အနီ အနိုင်ရရှိသည်!", winPlayer: "အောင်ပွဲ! အပြာ အနိုင်ရရှိသည်!",
+        turnNpc: "NPC အလှည့်", npcTargeting: "NPC ပစ်မှတ်ရှာနေသည်...", winNpc: "ဂိမ်းပြီးဆုံးပါပြီ! NPC/အနီ အနိုင်ရရှိသည်!", winPlayer: "အောင်ပွဲ! အပြာ အနိုင်ရရှိသည်!",
         undoBtn: "နောက်ပြန်ဆုတ်", historyLogLabel: "တိုက်ပွဲမှတ်တမ်း",
         logMove: "ရွှေ့လိုက်သည့်နေရာ", logCapture: "စားလိုက်သည့်နေရာ", logKing: "ဘုရင်အဖြစ် တိုးမြှင့်လိုက်ပြီ!", logUndo: "ယခင်အလှည့်ကို ပြန်ဖျက်လိုက်သည်။",
         textWin: "သင်နိုင်သည်", textLose: "သင်ရှုံးသည်", textP1Win: "ကစားသမား ၁ နိုင်သည်", textP2Win: "ကစားသမား ၂ နိုင်သည်",
@@ -379,7 +379,6 @@ function render() {
     boardEl.innerHTML = '';
     let bCount = 0, rCount = 0;
 
-    // Fixed Bug: If comboMode is active, keep rotation locked on the performing player side instead of rotating awkwardly mid-combo elimination
     if (state.mode === 'pvp' && state.turn === 'red' && !state.gameEnded && !state.flipLocked) {
         boardEl.className = 'flip-board-red';
     } else {
@@ -532,8 +531,12 @@ function executeMove(move) {
         if (victimSq && victimSq.firstChild) {
             victimSq.firstChild.classList.add('fx-explode');
         }
-        boardEl.classList.add('shake-impact');
-        setTimeout(() => boardEl.classList.remove('shake-impact'), 200);
+        
+        // FIXED BUG: Added shake impact to the wrapper parent instead of boardEl directly.
+        // This ensures transform: rotate(180deg) and transform: translate() don't wipe each other out.
+        const wrapper = boardEl.parentElement;
+        wrapper.classList.add('shake-impact');
+        setTimeout(() => wrapper.classList.remove('shake-impact'), 200);
 
         state.board[move.eat.r][move.eat.c] = null;
         playSound('capture');
@@ -561,7 +564,6 @@ function executeMove(move) {
     if (move.eat && !cowardlyKingEliminated) {
         const next = getValidMoves(move.r, move.c, state.board, true).filter(m => m.eat);
         if (next.length > 0) {
-            // Keep comboMode active and select the piece for the multi-capture
             state.comboMode = true; state.selected = {r: move.r, c: move.c}; state.moves = next;
             resetTurnTimer();
             render();
@@ -703,7 +705,6 @@ function evaluateBoard(b) {
 
 function cloneBoard(b) { return b.map(row => row.map(cell => cell ? { ...cell } : null)); }
 
-// Complete tree processing depth configurations tracking parameters
 function minimax(b, depth, alpha, beta, isMax) {
     if (depth === 0) return evaluateBoard(b);
     const side = isMax ? 'red' : 'blue'; const moves = getAllMoves(b, side);
